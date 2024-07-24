@@ -75,6 +75,7 @@ module.exports = {
                 method: 'POST',
                 headers: headers,
             };
+            let moni_data = [];
     
             const req = https.request(url, options, (res) => {
                 res.on('data', (chunk) => {
@@ -90,22 +91,33 @@ module.exports = {
                         if (line.startsWith('data: ')) {
                             try {
                                 const message = JSON.parse(line.replace(/^data: /, ''));
-                                const chunk_text = message.choices[0]?.delta?.content || '';
-    
-                                if (chunk_text) {
-                                    devLog && console.log('LLM 输出 ：', chunk_text);
-                                    texts.count_text += chunk_text.toString();  // 确保 chunk_text 是字符串
-                                    cb({ text, texts });
+                                const chunk_text = (message.choices[0]?.delta?.content || '');  // 转换为字符串
+                                // moni_data.push((message.choices[0]?.delta?.content || ''));
+                                if (chunk_text.trim() !== '') {
+                                    texts.count_text += chunk_text;
+                                    moni_data.push(chunk_text);
+                                    // cb({ text, texts });
                                 }
+    
+                                // if (chunk_text) {
+                                //     devLog && console.log('LLM 输出 ：', chunk_text);
+                                //     texts.count_text += chunk_text;
+                                //     cb({ text, texts });
+                                // }
+                                
                             } catch (e) {
                                 console.error('Error parsing message:', line, e);
                             }
                         }
+                        
                     }
                 });
     
                 res.on('end', () => {
-                    cb({ text, texts, is_over: true });
+                    console.log("moni_data：\n", moni_data);
+                    // cb({ text, texts, is_over: true });
+                    const res_text = moni_data.splice(0, 1);
+                    cb(res_text[0], moni_data.length);
                     devLog && console.log('\n===\n', texts.all_text, '\n===\n');
                 });
             });
@@ -134,8 +146,8 @@ module.exports = {
 
         moniServer((chunk_text, length) => {
             devLog && console.log('LLM 输出 ：', chunk_text);
-            texts["count_text"] += chunk_text.toString();  // 确保 chunk_text 是字符串
-            cb({ text, texts, is_over: length === 0 })
-        })
+            texts["count_text"] += chunk_text;  // chunk_text 已经是字符串
+            cb({ text, texts, is_over: length === 0 });
+        });
     }
 }
