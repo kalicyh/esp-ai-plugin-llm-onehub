@@ -49,6 +49,21 @@ module.exports = {
             count_text: "",
         }
 
+        // 请求llm服务的参数, 将对话信息给到参数中
+        const r_params = {
+            "model": config.llm,
+            "messages": [
+                ...llm_init_messages,
+                ...llm_historys,
+                {
+                    "role": "user", "content": text
+                },
+            ],
+            stream: true, // 启用流式输出
+        };
+        // 根据接口需求自行给接口
+        const body = JSON.stringify(llm_params_set ? llm_params_set(r_params) : r_params);
+
         // 模拟服务返回的数据
         function moniServer(cb) {
             const url = 'https://api.xn--5kv132d.com/v1/chat/completions';
@@ -79,7 +94,7 @@ module.exports = {
     
                                 if (chunk_text) {
                                     devLog && console.log('LLM 输出 ：', chunk_text);
-                                    texts.count_text += chunk_text;
+                                    texts.count_text += chunk_text.toString();  // 确保 chunk_text 是字符串
                                     cb({ text, texts });
                                 }
                             } catch (e) {
@@ -117,25 +132,9 @@ module.exports = {
             // reData();
         }
 
-
-        // 请求llm服务的参数, 将对话信息给到参数中
-        const r_params = {
-            "model": config.llm,
-            "messages": [
-                ...llm_init_messages,
-                ...llm_historys,
-                {
-                    "role": "user", "content": text
-                },
-            ],
-            stream: true, // 启用流式输出
-        };
-        // 根据接口需求自行给接口
-        const body = JSON.stringify(llm_params_set ? llm_params_set(r_params) : r_params);
-
         moniServer((chunk_text, length) => {
             devLog && console.log('LLM 输出 ：', chunk_text);
-            texts["count_text"] += chunk_text;
+            texts["count_text"] += chunk_text.toString();  // 确保 chunk_text 是字符串
             cb({ text, texts, is_over: length === 0 })
         })
     }
