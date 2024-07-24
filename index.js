@@ -1,3 +1,5 @@
+const https = require('https');
+
 /**
  * esp-ai LLM 插件开发
  * 
@@ -28,7 +30,11 @@ module.exports = {
         devLog && console.log("对话记录：\n", llm_historys)
 
         // 请自行约定接口 key 需要配置什么字段
-        const config = { ...api_key }
+        // const config = { ...api_key }
+        const config = {
+            api_key: api_key.apiKey,
+            llm: api_key.llm || 'gpt-3.5-turbo',
+        }
 
         // 连接 ws 服务后并且上报给框架
         // const llm_ws = new WebSocket("ws://xxx");
@@ -45,18 +51,70 @@ module.exports = {
 
         // 模拟服务返回的数据
         function moniServer(cb) {
-            const moni_data = [
-                "你好,",
-                "有什么我可以帮您的？",
-                "请尽管吩咐！",
-            ];
+            const url = 'https://api.xn--5kv132d.com/v1/chat/completions';
+            const headers = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${config.api_key}`,
+            };
+            const options = {
+                method: 'POST',
+                headers: headers,
+            };
+    
+            const req = https.request(url, options, (res) => {
+                res.on('data', (chunk) => {
+                    const data = chunk.toString().split('\n').filter(line => line.trim() !== '');
+                    
+                    for (const line of data) {
+                        if (line.trim() === 'data: [DONE]') {
+                            cb({ text, texts, is_over: true });
+                            devLog && console.log('LLM connect close!\n');
+                            return;
+                        }
+                        
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const message = JSON.parse(line.replace(/^data: /, ''));
+                                const chunk_text = message.choices[0]?.delta?.content || '';
+    
+                                if (chunk_text) {
+                                    devLog && console.log('LLM 输出 ：', chunk_text);
+                                    texts.count_text += chunk_text;
+                                    cb({ text, texts });
+                                }
+                            } catch (e) {
+                                console.error('Error parsing message:', line, e);
+                            }
+                        }
+                    }
+                });
+    
+                res.on('end', () => {
+                    cb({ text, texts, is_over: true });
+                    devLog && console.log('\n===\n', texts.all_text, '\n===\n');
+                });
+            });
+    
+            req.on('error', (err) => {
+                console.log("LLM connect err: " + err);
+                if (llmServerErrorCb) llmServerErrorCb(err);
+            });
+    
+            // 写入请求体
+            req.write(body);
+            req.end();
+            // const moni_data = [
+            //     "你好,",
+            //     "有什么我可以帮您的？",
+            //     "请尽管吩咐！",
+            // ];
 
-            function reData() {
-                const res_text = moni_data.splice(0, 1);
-                cb(res_text[0], moni_data.length);
-                moni_data.length && setTimeout(reData, 1000);
-            }
-            reData();
+            // function reData() {
+            //     const res_text = moni_data.splice(0, 1);
+            //     cb(res_text[0], moni_data.length);
+            //     moni_data.length && setTimeout(reData, 1000);
+            // }
+            // reData();
         }
 
 
@@ -69,7 +127,8 @@ module.exports = {
                 {
                     "role": "user", "content": text
                 },
-            ]
+            ],
+            stream: true, // 启用流式输出
         };
         // 根据接口需求自行给接口
         const body = JSON.stringify(llm_params_set ? llm_params_set(r_params) : r_params);
