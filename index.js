@@ -27,11 +27,9 @@ module.exports = {
     */
     main({ device_id, devLog, api_key, text, llmServerErrorCb, llm_init_messages = [], llm_historys = [], cb, llm_params_set, logWSServer }) {
 
-        devLog && console.log("对话记录：\n", llm_historys)
-
         // 请自行约定接口 key 需要配置什么字段
-        // const config = { ...api_key }
         const config = {
+            api_server: api_key.api_server || 'https://api.xn--5kv132d.com/v1/chat/completions',
             api_key: api_key.apiKey,
             llm: api_key.llm || 'gpt-3.5-turbo',
         }
@@ -40,10 +38,6 @@ module.exports = {
         // const llm_ws = new WebSocket("ws://xxx");
         // logWSServer(llm_ws)
 
-        /**
-         * 这个变量是固定写法，需要回传给 cb()
-         * 具体需要怎么更改见下面逻辑
-        */
         const texts = {
             all_text: "",
             count_text: "",
@@ -61,12 +55,21 @@ module.exports = {
             ],
             stream: true, // 启用流式输出
         };
+        
         // 根据接口需求自行给接口
         const body = JSON.stringify(llm_params_set ? llm_params_set(r_params) : r_params);
+        const askRecord = {
+            role: "user",
+            content: text
+        };
+        llm_historys.push(askRecord);
+
+        devLog && console.log("对话记录：\n", llm_historys)
+        console.log(body)
 
         // 模拟服务返回的数据
         function moniServer(cb) {
-            const url = 'https://api.xn--5kv132d.com/v1/chat/completions';
+            const url = config.api_server;
             const headers = {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${config.api_key}`,
@@ -83,28 +86,20 @@ module.exports = {
                     
                     for (const line of data) {
                         if (line.trim() === 'data: [DONE]') {
-                            cb({ text, texts, is_over: true });
-                            devLog && console.log('LLM connect close!\n');
+                            const newRecord = {
+                                role: "assistant",
+                                content: texts.count_text
+                            };
+                            llm_historys.push(newRecord);
+                            moni_data.push(texts.count_text);
                             return;
                         }
                         
                         if (line.startsWith('data: ')) {
                             try {
                                 const message = JSON.parse(line.replace(/^data: /, ''));
-                                const chunk_text = (message.choices[0]?.delta?.content || '');  // 转换为字符串
-                                // moni_data.push((message.choices[0]?.delta?.content || ''));
-                                if (chunk_text.trim() !== '') {
-                                    texts.count_text += chunk_text;
-                                    moni_data.push(chunk_text);
-                                    // cb({ text, texts });
-                                }
-    
-                                // if (chunk_text) {
-                                //     devLog && console.log('LLM 输出 ：', chunk_text);
-                                //     texts.count_text += chunk_text;
-                                //     cb({ text, texts });
-                                // }
-                                
+                                const chunk_text = (message.choices[0]?.delta?.content || '');
+                                texts.count_text += chunk_text;
                             } catch (e) {
                                 console.error('Error parsing message:', line, e);
                             }
@@ -114,10 +109,12 @@ module.exports = {
                 });
     
                 res.on('end', () => {
-                    console.log("moni_data：\n", moni_data);
-                    // cb({ text, texts, is_over: true });
-                    const res_text = moni_data.splice(0, 1);
-                    cb(res_text[0], moni_data.length);
+                    function reData() {
+                        const res_text = moni_data.splice(0, 1);
+                        cb(res_text[0], moni_data.length);
+                        moni_data.length && setTimeout(reData, 1000);
+                    }
+                    reData();
                     devLog && console.log('\n===\n', texts.all_text, '\n===\n');
                 });
             });
@@ -130,23 +127,10 @@ module.exports = {
             // 写入请求体
             req.write(body);
             req.end();
-            // const moni_data = [
-            //     "你好,",
-            //     "有什么我可以帮您的？",
-            //     "请尽管吩咐！",
-            // ];
-
-            // function reData() {
-            //     const res_text = moni_data.splice(0, 1);
-            //     cb(res_text[0], moni_data.length);
-            //     moni_data.length && setTimeout(reData, 1000);
-            // }
-            // reData();
         }
 
         moniServer((chunk_text, length) => {
             devLog && console.log('LLM 输出 ：', chunk_text);
-            texts["count_text"] += chunk_text;  // chunk_text 已经是字符串
             cb({ text, texts, is_over: length === 0 });
         });
     }
