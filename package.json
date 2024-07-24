@@ -1,0 +1,12 @@
+{
+  "name": "esp-ai-plugin-llm-onehub",
+  "keywords": ["esp-ai-plugin", "esp-ai-plugin-llm"],
+  "version": "0.0.2",
+  "description": "ESP-AI LLM Onehub Plugin | ESP-AI LLM Onehub 插件",
+  "main": "index.js",
+  "dependencies": { },
+  "devDependencies": {},
+  "scripts": { },
+  "author": "",
+  "license": "ISC"
+}
