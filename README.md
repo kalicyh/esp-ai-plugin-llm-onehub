@@ -20,10 +20,13 @@ espAi({
     ... 
 
     // 配置使用插件并且为插件配置api-key
+    //使用onehub项目：https://github.com/MartialBE/one-hub 或者OpenAi类型接口
     llm_server: "esp-ai-plugin-llm-onehub",
     api_key: {
         "esp-ai-plugin-llm-onehub": {
-            token: "ht-xxx"
+            apiKey: "sk-xxx",
+            llm: "gpt-3.5-turbo",
+            api_server: "https://api.xn--5kv132d.com/v1/chat/completions",
         },
     },
 
